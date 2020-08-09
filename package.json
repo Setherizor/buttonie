@@ -1,0 +1,56 @@
+{
+  "name": "buttonie",
+  "version": "0.0.0",
+  "description": "a group game about pressing eachother's right buttons",
+  "main": "main.js",
+  "scripts": {
+    "dev": "live-server --port=8081 ./public/",
+    "format": "prettier-standard '**/!(*min*)'",
+    "test": "ava"
+  },
+  "ava": {
+    "verbose": true,
+    "files": [
+      "tests/*"
+    ],
+    "require": [
+      "esm"
+    ],
+    "concurrency": 5,
+    "failFast": true,
+    "environmentVariables": {
+      "MY_ENVIRONMENT_VARIABLE": "some value"
+    },
+    "nodeArguments": [
+      "--trace-deprecation",
+      "--napi-modules"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Setherizor/buttonie.git"
+  },
+  "keywords": [
+    "game",
+    "buttons",
+    "nodejs",
+    "socketio",
+    "websockets"
+  ],
+  "author": "Seth Parrish",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Setherizor/buttonie/issues"
+  },
+  "homepage": "https://github.com/Setherizor/buttonie#readme",
+  "dependencies": {
+    "alpinejs": "^2.5.0"
+  },
+  "devDependencies": {
+    "alpine-test-utils": "0.0.6",
+    "ava": "^3.11.1",
+    "esm": "^3.2.25",
+    "live-server": "^1.2.1",
+    "prettier-standard": "^16.4.1"
+  }
+}
