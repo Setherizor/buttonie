@@ -32,7 +32,6 @@
       async
       src="https://cdn.jsdelivr.net/gh/aFarkas/lazysizes/lazysizes.min.js"
     ></script>
-    <script async src="functions.js"></script>
     <script
       async
       type="module"
@@ -44,7 +43,13 @@
       src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.5.0/dist/alpine-ie11.min.js"
     ></script>
 
-    <script src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
+    <script
+      defer
+      src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"
+    ></script>
+
+    <script defer src="functions.js"></script>
+    <script defer src="main.js"></script>
   </head>
 
   <!-- x-init="created(); checkHash()"
@@ -168,7 +173,7 @@
             <span
               style="font-size: 1rem;"
               class="badge"
-              :class="{ 'secondary': index != 0 && item.from != username}"
+              :class="{ 'secondary': item.from != username, 'success' : item.from == 'server' }"
               x-text="item.from + ' :'"
             ></span>
             <span x-text="item.data"></span>
@@ -209,196 +214,4 @@
       </h3>
     </div>
   </body>
-
-  <script>
-    function data () {
-      return {
-        // Dynamic Data
-        messages: [
-          {
-            from: 'server',
-            data: 'messages will show up here'
-          }
-        ],
-        // Form Data
-        roomcode: 'YEET', // for now room codes are just other's usernames
-        username: '',
-        message: '',
-        // Status Data
-        peer: null,
-        connection: [],
-        ingame: false,
-        isHost: false,
-        // Static data for convenience
-        navLinks: [
-          {
-            title: 'Play',
-            href: '#'
-          },
-          {
-            title: 'About',
-            href: '#'
-          },
-          {
-            title: 'Github',
-            href: 'https://github.com/Setherizor/buttonie'
-          }
-        ],
-
-        // Functions
-
-        // Ran on page load
-        created () {},
-        /**
-         * Send message to all connections
-         */
-        broadcast (message, isReplay) {
-          // Send existing package, or pack the data
-          let payload = isReplay
-            ? message
-            : {
-                from: this.username,
-                data: message
-              }
-
-          this.connection
-            .filter(c => c.metadata.username != message.from)
-            .forEach(c => c.send(payload))
-        },
-        /**
-         * As peer, just write to page
-         * As host, repeat to all but sending peer
-         */
-        messageHandler (message) {
-          if (this.isHost) this.broadcast(message, true)
-
-          // Scroll down
-          setTimeout(() => {
-            let el = document.getElementById('messages')
-            el.scrollTop = el.scrollHeight
-          }, 100)
-          this.messages.push(message)
-        },
-        /**
-         * Setup listeners for connections
-         * HOST & CLIENT
-         */
-        connectionHandler (conn) {
-          // data is launched when you receive a message
-          conn.on('data', data => this.messageHandler(data))
-
-          // open is launched when you successfully connect to PeerServer
-          conn.on('open', () =>
-            this.broadcast(
-              conn.metadata.username + ' has joined to ' + conn.peer
-            )
-          )
-
-          // detect when a connection is closed (won't work in Firefox)
-          conn.on('close', () => {
-            console.log('Connection closed:', conn.label)
-            this.broadcast(conn.metadata.username + ' has left')
-          })
-
-          // catch all
-          conn.on('error', function (e) {
-            console.log('Error with connection', e, this)
-          })
-
-          // Add to host's connections
-          this.connection.push(conn)
-        },
-        /**
-         * Join broker server with a given ID
-         */
-        broker (peerID) {
-          if (!this.peer)
-            this.peer = new Peer(peerID, {
-              host: 'pi.sethp.cc',
-              port: 9001,
-              path: '/buttonie'
-            })
-
-          return new Promise((resolve, reject) => {
-            this.peer.on('open', id => console.log('brokered:', id, this.peer))
-            resolve()
-          })
-        },
-        /**
-         * Host a gameroom
-         */
-        async host () {
-          let id = this.username
-          let room = this.roomcode
-          this.broker(room)
-
-          // Setup incoming connection handler
-          this.peer.on('connection', conn => this.connectionHandler(conn))
-
-          this.isHost = true
-          // this.ingame = true
-        },
-        /**
-         * Join the gameroom
-         */
-        async join () {
-          // Join the connection broker (PeerServer)
-          let id = this.username
-          let room = this.roomcode
-
-          // Close current connections
-          if (this.peer) this.peer.destroy()
-          if (this.connection.length != 0) this.connection = []
-
-          await this.broker(id + '-peer')
-
-          let conn = this.peer.connect(this.roomcode, {
-            label: id + '-connection',
-            metadata: {
-              username: id
-            }
-          })
-
-          this.connectionHandler(conn)
-          // this.ingame = true
-          console.log('You have entered the game')
-        },
-        /**
-         * send message to room if connected
-         */
-        sendMessage () {
-          if (!this.peer) {
-            alert('You have not connected to the broker')
-            return
-          }
-
-          if (this.connection.length == 0) {
-            alert('There is no one to send the message to')
-            return
-          }
-
-          if (!this.message) {
-            alert('Please type a message to send')
-            return
-          }
-
-          // Send to connections
-          this.broadcast(this.message)
-          // Add local message
-          this.messages.push({
-            from: this.username,
-            data: this.message
-          })
-
-          // Scroll down
-          setTimeout(() => {
-            let el = document.getElementById('messages')
-            el.scrollTop = el.scrollHeight
-          }, 100)
-
-          this.message = ''
-        }
-      }
-    }
-  </script>
 </html>
