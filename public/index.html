@@ -27,17 +27,12 @@
       [x-cloak] {
         display: none;
       }
-
-      .eventbutton {
-        background-color: #ff5252;
-        max-width: 700px;
-        word-break: break-all;
-      }
     </style>
-     <script
+    <script
       async
       src="https://cdn.jsdelivr.net/gh/aFarkas/lazysizes/lazysizes.min.js"
     ></script>
+    <script async src="functions.js"></script>
     <script
       async
       type="module"
@@ -64,7 +59,7 @@
     <!-- Navigation and header -->
     <nav class="border split-nav">
       <div class="nav-brand">
-        <h3><a href="#">Buttonie</a></h3>
+        <h3><a href="/">Buttonie</a></h3>
       </div>
       <div class="collapsible">
         <input id="collapsible1" type="checkbox" name="collapsible1" />
@@ -125,11 +120,7 @@
         <h3 class="margin-none">Joining a Game</h3>
         <h5 class="text-secondary margin-top-small">Let's get Connected!</h5>
 
-        <form
-          id="join-game"
-          class="padding"
-          onkeydown="return event.key != 'Enter';"
-        >
+        <form id="join-game" class="padding" x-on:submit.prevent>
           <div class="form-group">
             <label for="roomcode">Room Code</label>
             <input
@@ -150,7 +141,6 @@
           </div>
 
           <button
-            type="button"
             @click="join()"
             :disabled="username.length < 1 || roomcode.length < 4"
             class="btn-secondary btn-block"
@@ -159,7 +149,6 @@
           </button>
 
           <button
-            type="button"
             @click="host()"
             :disabled="username.length < 1 || roomcode.length < 4"
             class="btn-success btn-block margin-top-small"
@@ -188,7 +177,7 @@
       </div>
 
       <!-- Message form -->
-      <form id="messsage" onkeydown="return event.key != 'Enter';">
+      <form id="messsage" x-on:submit.prevent>
         <div class="form-group">
           <input
             autocomplete="off"
@@ -198,7 +187,7 @@
             x-model="message"
           />
 
-          <button type="button" @click="sendMessage()" class="btn-warning">
+          <button @click="sendMessage()" class="btn-warning">
             Send
           </button>
         </div>
