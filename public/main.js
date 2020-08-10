@@ -1,12 +1,8 @@
 function data () {
   return {
     // Dynamic Data
-    messages: [
-      {
-        from: 'server',
-        data: 'messages will show up here'
-      }
-    ],
+    messages: [],
+    alerts: [],
     // Form Data
     roomcode: 'YEET', // for now room codes are just other's usernames
     username: '',
@@ -29,6 +25,36 @@ function data () {
       {
         title: 'Github',
         href: 'https://github.com/Setherizor/buttonie'
+      }
+    ],
+    buttons: [
+      {
+        title: 'Blank',
+        class: ''
+      },
+      {
+        title: 'Possible',
+        class: 'background-secondary'
+      },
+      {
+        title: 'Weary',
+        class: 'background-success'
+      },
+      {
+        title: 'Other',
+        class: 'background-danger'
+      },
+      {
+        title: 'Down',
+        class: 'background-warning'
+      },
+      {
+        title: 'Online',
+        class: 'background-secondary'
+      },
+      {
+        title: 'Almost',
+        class: 'background-muted'
       }
     ],
 

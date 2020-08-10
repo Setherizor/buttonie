@@ -27,11 +27,23 @@
       [x-cloak] {
         display: none;
       }
+
+      .m-auto {
+        margin: auto;
+      }
     </style>
     <script
       async
       src="https://cdn.jsdelivr.net/gh/aFarkas/lazysizes/lazysizes.min.js"
     ></script>
+    <script
+      async
+      src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"
+    ></script>
+
+    <script src="functions.js"></script>
+    <script src="main.js"></script>
+
     <script
       async
       type="module"
@@ -42,14 +54,6 @@
       nomodule
       src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.5.0/dist/alpine-ie11.min.js"
     ></script>
-
-    <script
-      defer
-      src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"
-    ></script>
-
-    <script defer src="functions.js"></script>
-    <script defer src="main.js"></script>
   </head>
 
   <!-- x-init="created(); checkHash()"
@@ -91,30 +95,35 @@
 
     <main class="paper border border-5 shadow shadow-small">
       <!-- Notifications & Conditional Sections -->
-      <div
-        style="display:none"
-        class="padding-top-small padding-left padding-right"
-      >
+      <div class="margin-none">
         <!-- Progress Bar -->
-        <div class="progress margin-top-small margin-bottom-small">
+        <div
+          x-show="false"
+          class="progress margin-top-small margin-bottom-small"
+        >
           <div class="bar success w-50"></div>
         </div>
-        <hr class="margin-top margin-bottom" />
-
         <!-- Alerts -->
-        <div class="row flex-spaces">
-          <input class="alert-state" id="alert-1" type="checkbox" />
-          <div class="alert alert-secondary dismissible">
-            Alert-secondary
-            <label class="btn-close" for="alert-1">X</label>
-          </div>
-          <input class="alert-state" id="alert-2" type="checkbox" />
-          <div class="alert alert-success dismissible">
-            Alert-success
-            <label class="btn-close" for="alert-2">X</label>
-          </div>
+        <div x-show="alerts.length != 0" class="row flex-spaces margin-none">
+          <template x-for="(item, index) in alerts" :key="index">
+            <div class="m-auto col-fill">
+              <input
+                class="alert-state"
+                :id="`alert-${index}`"
+                type="checkbox"
+              />
+              <div
+                :class="'alert-' + item.bg"
+                class="alert dismissible margin-bottom-small"
+              >
+                <span x-html="item.text"></span>
+                <label class="btn-close" :for="`alert-${index}`">X</label>
+              </div>
+            </div>
+          </template>
+          <br />
+          <hr class="margin-none col-12 col" />
         </div>
-        <hr class="margin-top margin-bottom" />
       </div>
 
       <!-- Main Content -->
@@ -183,26 +192,46 @@
 
       <!-- Message form -->
       <form id="messsage" x-on:submit.prevent>
-        <div class="form-group">
+        <div class="form-group row flex-middle margin-top-small">
           <input
             autocomplete="off"
             type="text"
-            class="border-6 border"
+            class="border-6 border col-fill col margin-right-small"
             placeholder="enter a message"
             x-model="message"
           />
-
-          <button @click="sendMessage()" class="btn-warning">
+          <button
+            @click="sendMessage()"
+            style="min-width: 75px;"
+            class="col-3 col btn-warning"
+          >
             Send
           </button>
         </div>
       </form>
 
-      <!-- IDK what this is -->
-      <div x-show="ingame" class="paper container container-xs">
-        <button id="onsort" class="background-secondary">Online</button>
-        <button id="offsort" class="background-success">Offline</button>
-        <button id="allsort" class="background-primary">All</button>
+      <!-- Buttons! -->
+      <div
+        x-show="ingame"
+        class="paper container m-auto"
+        x-on:button-press="handleButtonPress($event.detail)"
+      >
+        <div class="row margin-none flex-spaces">
+          <template x-for="(item, index) in buttons" :key="index">
+            <div class="sm-6 md-4 col padding-small">
+              <button
+                style="width: 100%;"
+                :class="item.class"
+                x-text="item.title"
+                @click.debounce.250ms="alerts.push({
+                    text: `${username} pressed the <u>${item.title.toLowerCase()}</u> buton`,
+                    bg: item.class.replace('background-',''),
+                    timestamp: Date.now()
+                  })"
+              ></button>
+            </div>
+          </template>
+        </div>
       </div>
     </main>
     <div x-show="isHost" class="row">
