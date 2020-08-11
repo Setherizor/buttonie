@@ -5,7 +5,7 @@ function data () {
     alerts: [],
     // Form Data
     roomcode: 'YEET', // for now room codes are just other's usernames
-    username: '',
+    username: window.location.hash.slice(1) || '',
     message: '',
     // Status Data
     peer: null,
@@ -61,7 +61,13 @@ function data () {
     // More Functions Defined in `functions.js`
 
     // Ran on page load
-    created () {},
+    created () {
+      // Create an instance of Notyf
+      this.notyf = new Notyf({
+        duration: 5000,
+        dismissible: true
+      })
+    },
     /**
      * Scroll message pane down
      */
@@ -71,7 +77,16 @@ function data () {
         m.scrollTop = m.scrollHeight
       }, 100)
     },
-
+    /**
+     * Serve as generic status update handler
+     */
+    statusUpdate (status) {
+      broadcast(
+        this.connections,
+        this.isHost ? 'server' : this.username,
+        status
+      )
+    },
     /**
      * As peer, just write to page
      * As host, repeat to all but sending peer
@@ -80,116 +95,222 @@ function data () {
       if (this.isHost) broadcast(this.connections, message.from, message.data)
 
       // Scroll down
-      this.scrollMessages()
       this.messages.push(message)
+      this.scrollMessages()
     },
     /**
-     * Setup listeners for connections
-     * HOST & CLIENT
+     * Setup new incoming connections
+     * AS A HOST
      */
-    connectionHandler (conn) {
+    incomingConnectionHandler (conn) {
+      // Do validity & sanity checks on incoming connections
+
+      // Do not let connections in with taken names
+      if (conn.metadata.username == this.username) {
+        console.log(
+          'incoming connection denied due to name conflict with ' +
+            this.username
+        )
+        conn.on('open', () => {
+          conn.send({ err: 'Name already taken in room' })
+          // Kill connection if it does not go away in time
+          setTimeout(() => {
+            if (conn.open) {
+              console.log('Connection forcefull closed after rejection message')
+              conn.close()
+            }
+          }, 2000)
+        })
+        return // early exit
+      }
+
+      // Setup event listeners
+
       // data is launched when you receive a message
       conn.on('data', data => this.messageHandler(data))
 
-      // generic status update handler
-      const statusUpdate = status =>
-        broadcast(
-          this.connections,
-          this.isHost ? 'server' : this.username,
-          conn.metadata.username + ' ' + status
-        )
-
-      // open is launched when you successfully connect to PeerServer
+      // open is launched when the connection is ready to use
       conn.on('open', () => {
-        console.log('Connection opened:', conn.label)
-        statusUpdate('has joined to ' + conn.metadata.room)
+        console.log('connection opened:', conn.label)
+        this.statusUpdate(
+          `${conn.metadata.username} has joined to ${conn.metadata.room}`
+        )
       })
 
       // detect when a connection is closed (won't work in Firefox)
       conn.on('close', () => {
-        console.log('Connection closed:', conn.label)
-        statusUpdate('has left to ' + conn.peer)
+        console.warn('connection closed:', conn.label)
+        //TODO: remove closed connections, be smarter about this
+        this.connections = this.connections.filter(c => c.open)
+        this.statusUpdate(`${conn.metadata.username} has left to ${conn.peer}`)
       })
 
       // catch all
-      conn.on('error', e => console.log('Connection error:', e))
+      conn.on('error', e => console.error('Connection error:', e))
 
       // Add to host's connections
       this.connections.push(conn)
       console.log('added connection', this.connections)
     },
     /**
+     * Attempt to join a room and setup the connection
+     * AS A CLIENT
+     */
+    connectToRoom (roomID, peerID) {
+      // to resolve this, we need to not only connect, but also receive confirmation
+      return new Promise((resolve, reject) => {
+        let conn = this.peer.connect(roomID, {
+          label: peerID + '-connection',
+          metadata: {
+            username: peerID,
+            room: roomID
+          }
+        })
+
+        // Setup event listeners
+
+        // open is launched when the connection is ready to use
+        conn.on('open', () => {
+          console.log('connection to room opened: ', conn.metadata)
+          this.statusUpdate(
+            `${conn.metadata.username} has joined to ${conn.metadata.room}`
+          )
+        })
+
+        // data is launched when you receive a message
+        conn.on('data', data => {
+          if (data.err) return reject({ message: data.err, connection: conn })
+
+          this.messageHandler(data)
+
+          if (data.data.includes('has joined to')) return resolve(conn)
+        })
+
+        // detect when a connection is closed (won't work in Firefox)
+        conn.on('close', () => {
+          let errorMessage = 'connection closed: ' + conn.label
+          console.warn(errorMessage)
+          this.notyf.error(errorMessage)
+        })
+
+        // catch all
+        conn.on('error', e => console.error('Connection error:', e))
+      })
+    },
+
+    /**
      * Join broker server with a given ID
      */
-    broker (peerID) {
-      if (!this.peer)
-        this.peer = new Peer(peerID, {
+    broker (peerID, asHost) {
+      return new Promise((resolve, reject) => {
+        if (this.peer) reject('refresh page, registration mismatch')
+
+        let peer = new Peer(peerID, {
           host: 'pi.sethp.cc',
           port: 9001,
           path: '/buttonie'
         })
 
-      return new Promise((resolve, reject) => {
-        this.peer.on('open', id => console.log('brokered:', id, this.peer))
-        resolve()
+        peer.on('open', id => resolve(peer))
+
+        // Decide what to do with incoming connections
+        peer.on('connection', conn => {
+          if (asHost)
+            // Connection handling is only for hosts
+            this.incomingConnectionHandler(conn)
+          else this.notyf.error('someone tried to connect to you?')
+        })
+
+        peer.on('close', () => console.log('peer closed:', peer))
+
+        peer.on('disconnected', () => console.log('peer disconnected', peer))
+
+        peer.on('error', err => reject(err))
       })
     },
     /**
      * Host a gameroom
      */
-    async host () {
+    async host (roomID, peerID) {
       let id = this.username
       let room = this.roomcode
-      this.broker(room)
 
-      // Setup incoming connection handler
-      this.peer.on('connection', conn => this.connectionHandler(conn))
+      // Handle possible outcomes as a room host
+      try {
+        this.peer = await this.broker(room, true)
+
+        console.log('brokered as:', id, this.peer)
+        this.notyf.success('room hosted, awaiting peers...')
+      } catch (err) {
+        let errorMessage = err.toString().replace('ID', 'room')
+        console.error(errorMessage)
+        this.notyf.error(errorMessage)
+        return
+      }
 
       this.isHost = true
-      // this.ingame = true
+      this.ingame = true
     },
     /**
      * Join the gameroom
      */
     async join () {
-      // Join the connection broker (PeerServer)
       let id = this.username
       let room = this.roomcode
 
       // Close current connections
-      if (this.peer) this.peer.destroy()
-      if (this.connections.length != 0) this.connection = []
+      if (this.peer) {
+        this.notyf.error('refresh page, registration mismatch')
+        return
+      }
 
-      await this.broker(id + '-peer')
+      try {
+        // Join the connection broker (PeerServer)
+        this.peer = await this.broker(id + '-peer')
+        console.log('registered as:', id, this.peer)
 
-      let conn = this.peer.connect(this.roomcode, {
-        label: id + '-connection',
-        metadata: {
-          username: id,
-          room
+        // Join the room (through the host peer)
+        let conn = (this.connections[0] = await this.connectToRoom(room, id))
+        console.log('finished connecting to:', conn.peer)
+
+        this.ingame = true
+
+        let successMessage = `connected to ${conn.metadata.room} as ${conn.metadata.username}`
+        console.log(successMessage, conn)
+        this.notyf.success(successMessage)
+      } catch (err) {
+        // Do unique error handling if connection is passed along
+        if (err.connection) {
+          err.connection.close() // close connection politely
+          // unregister peer politely
+          //TODO: check that this behaivor is desirable
+          this.peer.destroy()
+          this.peer = true // invalidate this page and force refresh
         }
-      })
-
-      this.connectionHandler(conn)
-      // this.ingame = true
-      console.log('You have entered the game')
+        let errorMessage = err.connection
+          ? err.message.toString()
+          : err.toString()
+        console.error(errorMessage)
+        this.notyf.error(errorMessage)
+        return
+      }
     },
     /**
      * send message to room if connected
      */
     sendMessage () {
       if (!this.peer) {
-        alert('You have not connected to the broker')
+        this.notyf.error('you are not registered')
         return
       }
 
       if (this.connections.length == 0) {
-        alert('There is no one to send the message to')
+        this.notyf.error('no peers to send too')
         return
       }
 
       if (!this.message) {
-        alert('Please type a message to send')
+        this.notyf.error('please type a message')
         return
       }
 
