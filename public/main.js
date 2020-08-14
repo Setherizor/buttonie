@@ -204,11 +204,11 @@ function data () {
     broker (peerID, asHost) {
       return new Promise((resolve, reject) => {
         if (this.peer) reject('refresh page, registration mismatch')
-
+        // TODO use /peers to discover existing rooms
         let peer = new Peer(peerID, {
-          host: 'pi.sethp.cc',
-          port: 9001,
-          path: '/buttonie'
+          host: 'p2p.sethp.cc',
+          path: '/buttonie',
+          secure: true,
         })
 
         peer.on('open', id => resolve(peer))

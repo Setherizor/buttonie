@@ -3,6 +3,7 @@
 {
   "name": "Node.js 14",
   "dockerFile": "Dockerfile",
+  "runArgs": ["--name", "buttonie_dev"],
 
   // Set *default* container specific settings.json values on container create.
   "settings": {
