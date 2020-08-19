@@ -1,3 +1,5 @@
+const PEERSERVER = 'https://p2p.sethp.cc'
+
 function data () {
   return {
     // Dynamic Data
@@ -9,9 +11,24 @@ function data () {
     message: '',
     // Status Data
     peer: null,
-    connections: [],
     ingame: false,
     isHost: false,
+    // #######################
+    // # Computed Properties #
+    // #######################
+    /**
+     * Check that this peer has a live connection
+     */
+    get hasConnection () {
+      return (
+        this.peer != null &&
+        Object.values(this.peer.connections)
+          .flat()
+          .some(c => c.open)
+      )
+    },
+    // Libraries
+    notyf: null,
     // Static data for convenience
     navLinks: [
       {
@@ -60,13 +77,24 @@ function data () {
 
     // More Functions Defined in `functions.js`
 
-    // Ran on page load
+    /**
+     * Ran on page load to setup libraries
+     */
     created () {
       // Create an instance of Notyf
       this.notyf = new Notyf({
         duration: 5000,
         dismissible: true
       })
+    },
+    // ##################
+    // # Basic Behaiors #
+    // ##################
+    /**
+     * Handle hash changes on the site
+     */
+    parseHash () {
+      console.log(location.hash)
     },
     /**
      * Scroll message pane down
@@ -80,23 +108,53 @@ function data () {
     /**
      * Serve as generic status update handler
      */
-    statusUpdate (status) {
-      broadcast(
-        this.connections,
-        this.isHost ? 'server' : this.username,
-        status
-      )
+    statusUpdate (data) {
+      let from = this.isHost ? 'server' : this.username
+
+      broadcast(this.peer, 'status', from, data)
+
+      this.messages.push({ from, data })
+      this.scrollMessages()
     },
     /**
      * As peer, just write to page
      * As host, repeat to all but sending peer
      */
     messageHandler (message) {
-      if (this.isHost) broadcast(this.connections, message.from, message.data)
+      console.log(this.peer.id, message)
+      // host repeat
+      if (this.isHost) broadcast(this.peer, message.type, message.from, message.data)
+
+      if (message.type == 'buttonpress') {
+        this.alerts.push({
+          text: `${
+            message.from
+          } pressed the <u>${message.data.title.toLowerCase()}</u> buton`,
+          bg: message.data.class.replace('background-', ''),
+          timestamp: Date.now()
+        })
+      }
 
       // Scroll down
-      this.messages.push(message)
-      this.scrollMessages()
+      if (['chat', 'status'].includes(message.type)) {
+        this.messages.push(message)
+        this.scrollMessages()
+      }
+    },
+
+    // ####################
+    // # Complex Behaiors #
+    // ####################
+    handleButtonPress (e) {
+      this.alerts.push({
+        text: `${
+          this.username
+        } pressed the <u>${e.title.toLowerCase()}</u> buton`,
+        bg: e.class.replace('background-', ''),
+        timestamp: Date.now()
+      })
+
+      broadcast(this.peer, 'buttonpress', this.username, e)
     },
     /**
      * Setup new incoming connections
@@ -105,7 +163,7 @@ function data () {
     incomingConnectionHandler (conn) {
       // Do validity & sanity checks on incoming connections
 
-      // Do not let connections in with taken names
+      // Do not let connections in with taken names, peerserver handles same peer names
       if (conn.metadata.username == this.username) {
         console.log(
           'incoming connection denied due to name conflict with ' +
@@ -132,6 +190,7 @@ function data () {
       // open is launched when the connection is ready to use
       conn.on('open', () => {
         console.log('connection opened:', conn.label)
+
         this.statusUpdate(
           `${conn.metadata.username} has joined to ${conn.metadata.room}`
         )
@@ -140,17 +199,14 @@ function data () {
       // detect when a connection is closed (won't work in Firefox)
       conn.on('close', () => {
         console.warn('connection closed:', conn.label)
-        //TODO: remove closed connections, be smarter about this
-        this.connections = this.connections.filter(c => c.open)
-        this.statusUpdate(`${conn.metadata.username} has left to ${conn.peer}`)
+        this.statusUpdate(`${conn.metadata.username} has left as ${conn.peer}`)
       })
 
       // catch all
       conn.on('error', e => console.error('Connection error:', e))
 
       // Add to host's connections
-      this.connections.push(conn)
-      console.log('added connection', this.connections)
+      console.log('added connection', Object.values(this.peer.connections))
     },
     /**
      * Attempt to join a room and setup the connection
@@ -172,9 +228,6 @@ function data () {
         // open is launched when the connection is ready to use
         conn.on('open', () => {
           console.log('connection to room opened: ', conn.metadata)
-          this.statusUpdate(
-            `${conn.metadata.username} has joined to ${conn.metadata.room}`
-          )
         })
 
         // data is launched when you receive a message
@@ -183,7 +236,7 @@ function data () {
 
           this.messageHandler(data)
 
-          if (data.data.includes('has joined to')) return resolve(conn)
+          if (data.type == 'status' && data.data.includes('has joined to')) return resolve(conn)
         })
 
         // detect when a connection is closed (won't work in Firefox)
@@ -206,9 +259,9 @@ function data () {
         if (this.peer) reject('refresh page, registration mismatch')
         // TODO use /peers to discover existing rooms
         let peer = new Peer(peerID, {
-          host: 'p2p.sethp.cc',
+          host: PEERSERVER.split('/').pop(),
           path: '/buttonie',
-          secure: true,
+          secure: true
         })
 
         peer.on('open', id => resolve(peer))
@@ -238,7 +291,6 @@ function data () {
       // Handle possible outcomes as a room host
       try {
         this.peer = await this.broker(room, true)
-
         console.log('brokered as:', id, this.peer)
         this.notyf.success('room hosted, awaiting peers...')
       } catch (err) {
@@ -270,7 +322,7 @@ function data () {
         console.log('registered as:', id, this.peer)
 
         // Join the room (through the host peer)
-        let conn = (this.connections[0] = await this.connectToRoom(room, id))
+        let conn = await this.connectToRoom(room, id)
         console.log('finished connecting to:', conn.peer)
 
         this.ingame = true
@@ -304,7 +356,7 @@ function data () {
         return
       }
 
-      if (this.connections.length == 0) {
+      if (!this.hasConnection) {
         this.notyf.error('no peers to send too')
         return
       }
@@ -315,7 +367,7 @@ function data () {
       }
 
       // Send to connections
-      broadcast(this.connections, this.username, this.message)
+      broadcast(this.peer, 'chat', this.username, this.message)
       // Add local message
       this.messages.push({
         from: this.username,

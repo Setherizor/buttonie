@@ -40,14 +40,8 @@
       async
       src="https://cdn.jsdelivr.net/gh/aFarkas/lazysizes/lazysizes.min.js"
     ></script>
-    <script
-      async
-      src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"
-    ></script>
-    <script
-      async
-      src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"
-    ></script>
+    <script src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
 
     <script src="functions.js"></script>
     <script src="main.js"></script>
@@ -64,19 +58,20 @@
     ></script>
   </head>
 
-  <!-- x-init="created(); checkHash()"
-    @hashchange.window="checkHash()" -->
-
   <body
     x-cloak
     x-data="data()"
     x-init="created()"
+    @hashchange.window="parseHash()"
     class="container m-auto padding padding-bottom-none"
   >
     <!-- Navigation and header -->
-    <nav class="border split-nav margin-none">
+    <nav
+      class="border split-nav margin-none"
+      :class="{'background-secondary': peer && !peer.destroyed && !hasConnection, 'background-success': peer && hasConnection}"
+    >
       <div class="nav-brand">
-        <h3><a href="/">Buttonie</a></h3>
+        <h3><a href="/">Buttonie</a><span x-show="isHost"> - host</span></h3>
       </div>
       <div class="collapsible">
         <input id="collapsible1" type="checkbox" name="collapsible1" />
@@ -137,50 +132,53 @@
       </div>
 
       <!-- Main Content -->
-      <div
-        x-show="!ingame"
-        class="padding-top-small padding-left padding-right padding-none"
-      >
-        <h3 class="margin-none">Joining a Game</h3>
-        <h5 class="text-secondary margin-none">Let's get Connected!</h5>
-
-        <form id="join-game" class="margin-top" x-on:submit.prevent>
-          <div class="form-group margin-bottom-small">
-            <label for="roomcode">Room Code</label>
-            <input
-              type="text"
-              placeholder="enter 4 letter code"
-              onkeyup="this.value = this.value.toUpperCase()"
-              x-model="roomcode"
-            />
-          </div>
-
-          <div class="form-group margin-bottom-small">
-            <label for="name">Name</label>
-            <input
-              type="text"
-              placeholder="enter your name"
-              x-model="username"
-            />
-          </div>
-
-          <button
-            @click="join()"
-            :disabled="username.length < 1 || roomcode.length < 4"
-            class="btn-secondary btn-block"
+      <div class="row flex-spaces">
+          <div
+            x-show="!ingame"
+            class="sm-9 col padding-top-small padding-left padding-right padding-none"
           >
-            <h4 class="margin-none">Join</h4>
-          </button>
+            <h3 class="margin-none">Joining a Game</h3>
+            <h5 class="text-secondary margin-none">Let's get Connected!</h5>
 
-          <button
-            @click="host()"
-            :disabled="username.length < 1 || roomcode.length < 4"
-            class="btn-success btn-block margin-top-small"
-          >
-            <h4 class="margin-none">Host</h4>
-          </button>
-        </form>
+            <form id="join-game" class="margin-top" x-on:submit.prevent>
+              <div class="form-group margin-bottom-small">
+                <label for="roomcode">Room Code</label>
+                <input
+                  type="text"
+                  placeholder="enter 4 letter code"
+                  onkeyup="this.value = this.value.toUpperCase()"
+                  x-model="roomcode"
+                />
+              </div>
+
+              <div class="form-group margin-bottom-small">
+                <label for="name">Name</label>
+                <input
+                  type="text"
+                  placeholder="enter your name"
+                  x-model="username"
+                />
+              </div>
+
+              <button
+                @click="join()"
+                :disabled="username.length < 1 || roomcode.length < 4"
+                class="btn-secondary btn-block"
+              >
+                <h4 class="margin-none">Join</h4>
+              </button>
+
+              <button
+                @click="host()"
+                :disabled="username.length < 1 || roomcode.length < 4"
+                class="btn-success btn-block margin-top-small"
+              >
+                <h4 class="margin-none">Host</h4>
+              </button>
+            </form>
+        </div>
       </div>
+
       <h3 class="margin-none padding-small">Message Output</h3>
       <div
         id="messages"
@@ -224,7 +222,7 @@
       <div
         x-show="ingame"
         class="paper container m-auto"
-        x-on:button-press="handleButtonPress($event.detail)"
+        @button-press="handleButtonPress($event.detail)"
       >
         <div class="row margin-none flex-spaces">
           <template x-for="(item, index) in buttons" :key="index">
@@ -233,24 +231,12 @@
                 style="width: 100%;"
                 :class="item.class"
                 x-text="item.title"
-                @click.debounce.250ms="alerts.push({
-                    text: `${username} pressed the <u>${item.title.toLowerCase()}</u> buton`,
-                    bg: item.class.replace('background-',''),
-                    timestamp: Date.now()
-                  })"
+                @click.debounce.250ms="$dispatch('button-press', item)"
               ></button>
             </div>
           </template>
         </div>
       </div>
     </main>
-    <div x-show="isHost" class="row">
-      <h3
-        style="text-align: center;"
-        class="col-12 col text-muted padding-none margin-none"
-      >
-        You are the host
-      </h3>
-    </div>
   </body>
 </html>
