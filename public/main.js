@@ -123,7 +123,8 @@ function data () {
     messageHandler (message) {
       console.log(this.peer.id, message)
       // host repeat
-      if (this.isHost) broadcast(this.peer, message.type, message.from, message.data)
+      if (this.isHost)
+        broadcast(this.peer, message.type, message.from, message.data)
 
       if (message.type == 'buttonpress') {
         this.alerts.push({
@@ -236,7 +237,8 @@ function data () {
 
           this.messageHandler(data)
 
-          if (data.type == 'status' && data.data.includes('has joined to')) return resolve(conn)
+          if (data.type == 'status' && data.data.includes('has joined to'))
+            return resolve(conn)
         })
 
         // detect when a connection is closed (won't work in Firefox)
